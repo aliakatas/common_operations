@@ -1,6 +1,10 @@
 #include <math.h>
 #include <algorithm>
 
+#define DEBRIS_PASTURE_ARABLE		1
+#define DEBRIS_WOODLAND				2
+#define DEBRIS_URBAN				3
+
 namespace common_operations {
 
 template <typename T>
@@ -310,6 +314,63 @@ T calculate_courant_number_safe(const T velocity_x, const T velocity_y,
 		return nodata;
 	return calculate_courant_number(velocity_x, time_resolution, space_x_resolution) +
 				calculate_courant_number(velocity_y, time_resolution, space_y_resolution);
+}
+
+// based on http://randd.defra.gov.uk/Document.aspx?Document=FD2321_7400_PR.pdf
+template <typename T>
+T calculate_flood_hazard_rating(const T depth, const T velocity,
+		const T const_coef, const T debris_coef) {
+	return depth + (velocity + const_coef) + debris_coef;
+}
+
+template <typename T>
+T calculate_flood_hazard_rating_safe(const T depth, const T velocity,
+		const T const_coef, const T debris_coef,
+		const T nodata, const T tolerance) {
+	if (are_equal(velocity, nodata, tolerance) ||
+			are_equal(depth, nodata, tolerance))
+		return nodata;
+	return calculate_flood_hazard_rating(depth, velocity, const_coef, debris_coef);
+}
+
+template <typename T>
+T calculate_debris_coefficient(const T depth, const T velocity,
+		const int debris_characterisation) {
+	// High depth or high velocity
+	if (depth > static_cast<T>(0.75) ||
+			velocity > static_cast<T>(2.)) {
+		switch (debris_characterisation) {
+		case DEBRIS_PASTURE_ARABLE:
+			return static_cast<T>(0.5);
+		case DEBRIS_WOODLAND:
+		case DEBRIS_URBAN:
+			return static_cast<T>(1.0);
+		default:
+			return static_cast<T>(0.);
+		}
+	}
+
+	// Low depth
+	if ((depth >= static_cast<T>(0.)) &&
+			(depth <= static_cast<T>(0.25)))
+		return static_cast<T>(0.);
+
+	// Mid depth
+	if ((depth > static_cast<T>(0.25)) &&
+			(depth <= static_cast<T>(0.75))) {
+		switch (debris_characterisation) {
+		case DEBRIS_PASTURE_ARABLE:
+			return static_cast<T>(0.);
+		case DEBRIS_WOODLAND:
+			return static_cast<T>(0.5);
+		case DEBRIS_URBAN:
+			return static_cast<T>(1.0);
+		default:
+			return static_cast<T>(0.);
+		}
+	}
+
+	return static_cast<T>(0.);
 }
 }
 
